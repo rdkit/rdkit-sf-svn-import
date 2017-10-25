@@ -6736,6 +6736,72 @@ void testGithubIssue1021() {
   }
   BOOST_LOG(rdInfoLog) << "\tdone" << std::endl;
 }
+
+void testAssignStereochemistryNewParameters() {
+	BOOST_LOG(rdInfoLog)
+		<< "-----------------------\n Testing new assignStereochemistry optional parameters"
+		<< std::endl;
+	{
+		std::string smi = "CC(Cl)(F)C[C@H](O)C";
+		RWMol *m = SmilesToMol(smi);
+		TEST_ASSERT(m);
+		TEST_ASSERT(m->getNumAtoms() == 8);
+		
+
+		m->clearComputedProps();
+		bool cleanit = true, force = true;
+		MolOps::assignStereochemistry(*m, cleanit, force);
+		TEST_ASSERT(m->getAtomWithIdx(1)->hasProp("_ChiralityPossible"));
+		TEST_ASSERT(m->getAtomWithIdx(5)->getChiralTag() != Atom::CHI_UNSPECIFIED);
+
+		UINT_VECT stereos;
+		MolOps::assignStereochemistry(*m, cleanit, force, true, &stereos);
+		TEST_ASSERT(m->getAtomWithIdx(1)->hasProp("_ChiralityPossible"));
+		TEST_ASSERT(m->getAtomWithIdx(5)->getChiralTag() != Atom::CHI_UNSPECIFIED);
+		TEST_ASSERT(stereos[0] == 1);
+		TEST_ASSERT(stereos[1] == 5);
+		TEST_ASSERT(stereos.size() == 2);
+
+		MolOps::assignStereochemistry(*m, cleanit, force, true, &stereos, false);
+		TEST_ASSERT(m->getAtomWithIdx(1)->hasProp("_ChiralityPossible"));
+		TEST_ASSERT(m->getAtomWithIdx(5)->getChiralTag() != Atom::CHI_UNSPECIFIED);
+		TEST_ASSERT(stereos[0] == 1);
+		TEST_ASSERT(stereos[1] == 5);
+		TEST_ASSERT(stereos.size() == 2);
+		
+		MolOps::assignStereochemistry(*m, cleanit, force, true, &stereos, true);
+		TEST_ASSERT(m->getAtomWithIdx(1)->hasProp("_ChiralityPossible"));
+		TEST_ASSERT(m->getAtomWithIdx(5)->getChiralTag() != Atom::CHI_UNSPECIFIED);
+		TEST_ASSERT(stereos[0] == 1);
+		TEST_ASSERT(stereos.size() == 1);
+		delete m;
+	}
+	BOOST_LOG(rdInfoLog) << "\tdone" << std::endl;
+}
+
+void testFindPotentialStereoBondsNewParameters() {
+	BOOST_LOG(rdInfoLog)
+		<< "-----------------------\n Testing new assignStereochemistry optional parameters"
+		<< std::endl;
+	{
+		std::string smi = "CC=CC";
+		RWMol *m = SmilesToMol(smi);
+		TEST_ASSERT(m);
+		TEST_ASSERT(m->getNumAtoms() == 4);
+
+		MolOps::findPotentialStereoBonds(*m, true);
+		TEST_ASSERT(m->getBondWithIdx(1)->getStereo() == Bond::STEREONONE);
+
+		UINT_VECT stereos;
+		MolOps::findPotentialStereoBonds(*m, true, &stereos);
+		TEST_ASSERT(m->getBondWithIdx(1)->getStereo() == Bond::STEREONONE);
+		TEST_ASSERT(stereos[0] == 1);
+		TEST_ASSERT(stereos.size() == 1);
+		delete m;
+	}
+	BOOST_LOG(rdInfoLog) << "\tdone" << std::endl;
+}
+
 void testGithubIssue607() {
   BOOST_LOG(rdInfoLog)
       << "-----------------------\n Testing github issue 607: "

@@ -835,7 +835,8 @@ void detectBondStereochemistry(ROMol &mol, int confId = -1);
 
 */
 void assignStereochemistry(ROMol &mol, bool cleanIt = false, bool force = false,
-                           bool flagPossibleStereoCenters = false);
+                           bool flagPossibleStereoCenters = false, UINT_VECT *stereocenters=0, 
+	                       bool onlyStereoAny = false);
 //! Removes all stereochemistry information from atoms (i.e. R/S) and bonds
 //(i.e. Z/E)
 /*!
@@ -866,7 +867,7 @@ void removeStereochemistry(ROMol &mol);
   The CIPranks on the neighboring atoms are checked in this function. The
   _CIPCode property if set to any on the double bond.
 */
-void findPotentialStereoBonds(ROMol &mol, bool cleanIt = false);
+void findPotentialStereoBonds(ROMol &mol, bool cleanIt = false, UINT_VECT *possibleStereobonds=0);
 //@}
 
 //! returns the number of atoms which have a particular property set

@@ -667,11 +667,15 @@ std::pair<bool, bool> isAtomPotentialChiralCenter(
 //   1) are there unassigned stereoatoms
 //   2) did we assign any?
 std::pair<bool, bool> assignAtomChiralCodes(ROMol &mol, UINT_VECT &ranks,
-                                            bool flagPossibleStereoCenters) {
+                                            bool flagPossibleStereoCenters, UINT_VECT *stereocenters, bool onlyStereoAny) {
   PRECONDITION((!ranks.size() || ranks.size() == mol.getNumAtoms()),
                "bad rank vector size");
   bool atomChanged = false;
   unsigned int unassignedAtoms = 0;
+  if (stereocenters) {
+	  //Clear the list of sterecentres
+	  stereocenters->resize(0);
+  }
 
   // ------------------
   // now loop over each atom and, if it's marked as chiral,
@@ -702,6 +706,9 @@ std::pair<bool, bool> assignAtomChiralCodes(ROMol &mol, UINT_VECT &ranks,
       }
       if (legalCenter && !hasDupes && flagPossibleStereoCenters) {
         atom->setProp(common_properties::_ChiralityPossible, 1);
+		if (stereocenters) {
+			stereocenters->push_back(atom->getIdx());
+		}
       }
 
       if (legalCenter && !hasDupes && tag != Atom::CHI_UNSPECIFIED &&
@@ -742,6 +749,9 @@ std::pair<bool, bool> assignAtomChiralCodes(ROMol &mol, UINT_VECT &ranks,
         else
           cipCode = "R";
         atom->setProp(common_properties::_CIPCode, cipCode);
+		if (stereocenters && !onlyStereoAny) {
+			stereocenters->push_back(atom->getIdx());
+		}
       }
     }
   }
@@ -960,7 +970,7 @@ namespace MolOps {
          repeat the above steps as necessary
  */
 void assignStereochemistry(ROMol &mol, bool cleanIt, bool force,
-                           bool flagPossibleStereoCenters) {
+                           bool flagPossibleStereoCenters, UINT_VECT *stereocenters, bool onlyStereoAny) {
   if (!force && mol.hasProp(common_properties::_StereochemDone)) {
     return;
   }
@@ -1041,7 +1051,7 @@ void assignStereochemistry(ROMol &mol, bool cleanIt, bool force,
     if (hasStereoAtoms) {
       boost::tie(hasStereoAtoms, changedStereoAtoms) =
           Chirality::assignAtomChiralCodes(mol, atomRanks,
-                                           flagPossibleStereoCenters);
+                                           flagPossibleStereoCenters, stereocenters, onlyStereoAny);
     } else {
       changedStereoAtoms = false;
     }
@@ -1129,7 +1139,7 @@ void assignStereochemistry(ROMol &mol, bool cleanIt, bool force,
 
 // Find bonds than can be cis/trans in a molecule and mark them as
 // Bond::STEREOANY.
-void findPotentialStereoBonds(ROMol &mol, bool cleanIt) {
+void findPotentialStereoBonds(ROMol &mol, bool cleanIt, UINT_VECT *possibleStereobonds) {
   // FIX: The earlier thought was to provide an optional argument to ignore or
   // consider
   //  double bonds in a ring. But I am removing this optional argument and
@@ -1144,6 +1154,9 @@ void findPotentialStereoBonds(ROMol &mol, bool cleanIt) {
   } else {
     UINT_VECT ranks;
     ranks.resize(mol.getNumAtoms());
+	if (possibleStereobonds !=0 ) {
+		possibleStereobonds->resize(0);
+	}
     bool cipDone = false;
 
     ROMol::BondIterator bondIt;
@@ -1254,6 +1267,9 @@ void findPotentialStereoBonds(ROMol &mol, bool cleanIt) {
               // mark this double bond as a potential stereo bond
               if (!dblBond->getStereoAtoms().empty()) {
                 dblBond->setStereo(Bond::STEREOANY);
+				if (possibleStereobonds !=0) {
+					possibleStereobonds->push_back(dblBond->getIdx());
+				}
               }
             }  // end of check that beg and end atoms have at least 1
                // neighbor:
