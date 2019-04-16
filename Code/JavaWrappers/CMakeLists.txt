@@ -1,4 +1,6 @@
 find_package(SWIG REQUIRED)
+find_package(Boost REQUIRED COMPONENTS system thread)
+
 include(${SWIG_USE_FILE})
 
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR})
@@ -22,7 +24,7 @@ endif(RDK_BUILD_INCHI_SUPPORT)
 set(swigRDKitLibList "${swigRDKitLibList}"
   "RGroupDecomposition;SubstructLibrary;"
   "MolStandardize;FilterCatalog;Catalogs;FMCS;MolDraw2D;FileParsers;SmilesParse;"
-  "Depictor;SubstructMatch;ChemReactions;Fingerprints;ChemTransforms;"
+  "Depictor;SubstructMatch;SubstructLibrary;ChemReactions;Fingerprints;ChemTransforms;"
   "Subgraphs;GraphMol;DataStructs;Trajectory;Descriptors;"
   "PartialCharges;MolTransforms;DistGeomHelpers;DistGeometry;"
   "ForceFieldHelpers;ForceField;EigenSolvers;Optimizer;MolAlign;"
@@ -51,7 +53,9 @@ else()
   set(swigRDKitLibs "${swigRDKitLibs}${Boost_IOSTREAMS_LIBRARY};${Boost_SYSTEM_LIBRARY};")
 endif()
 
-
+if(RDK_BUILD_THREADSAFE_SSS)
+  set(swigRDKitLibs "${swigRDKitLibs}${Boost_SYSTEM_LIBRARY};${Boost_THREAD_LIBRARY};")
+endif(RDK_BUILD_THREADSAFE_SSS)
 
 set(RDKit_Wrapper_Libs ${swigRDKitLibs})
 
