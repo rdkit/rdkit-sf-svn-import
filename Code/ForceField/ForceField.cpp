@@ -329,7 +329,6 @@ double ForceField::calcEnergy(double *pos) {
   }
   return res;
 }
-
 void ForceField::calcGrad(double *grad) const {
   PRECONDITION(df_init, "not initialized");
   PRECONDITION(grad, "bad gradient vector");

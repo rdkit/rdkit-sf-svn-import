@@ -94,6 +94,20 @@ ForceFields::PyForceField *UFFGetMoleculeForceField(
   return res;
 }
 
+python::object UFFGetForceFieldTerms(
+    ROMol &mol, double vdwThresh = 10.0, int confId = -1,
+    bool ignoreInterfragInteractions = true) {
+   
+  python::list ETerms;
+  std::vector<std::vector<double>> terms;
+  UFF::getForceFieldTerms(
+        mol, terms, vdwThresh, confId, ignoreInterfragInteractions);
+  for (std::vector<double> term: terms) {
+    ETerms.append(python::make_tuple(term[0],term[1],term[2],term[3],term[4],term[5]));
+  }
+  return ETerms;
+}
+
 bool UFFHasAllMoleculeParams(const ROMol &mol) {
   UFF::AtomicParamVect types;
   bool foundAll;
@@ -170,6 +184,36 @@ bool MMFFHasAllMoleculeParams(const ROMol &mol) {
 };
 
 namespace ForceFields {
+typedef std::vector<const ForceFields::UFF::AtomicParams *> AtomicParamVect;
+
+PyObject *GetUFFAtomTypes(const RDKit::ROMol &mol) {
+  PyObject *res = nullptr;
+  PyObject *resitem = nullptr;
+  AtomicParamVect params;
+  bool foundAll;
+  boost::tie(params, foundAll) = RDKit::UFF::getAtomTypes(mol);
+
+  
+  res = PyList_New(mol.getNumAtoms());
+  for (unsigned int i = 0; i < mol.getNumAtoms(); i++) {
+    resitem = PyTuple_New(11);
+    PyTuple_SetItem(resitem, 0, PyFloat_FromDouble(params[i]->r1));
+    PyTuple_SetItem(resitem, 1, PyFloat_FromDouble(params[i]->theta0));
+    PyTuple_SetItem(resitem, 2, PyFloat_FromDouble(params[i]->x1));
+    PyTuple_SetItem(resitem, 3, PyFloat_FromDouble(params[i]->D1));
+    PyTuple_SetItem(resitem, 4, PyFloat_FromDouble(params[i]->zeta));
+    PyTuple_SetItem(resitem, 5, PyFloat_FromDouble(params[i]->Z1));
+    PyTuple_SetItem(resitem, 6, PyFloat_FromDouble(params[i]->V1));
+    PyTuple_SetItem(resitem, 7, PyFloat_FromDouble(params[i]->U1));
+    PyTuple_SetItem(resitem, 8, PyFloat_FromDouble(params[i]->GMP_Xi));
+    PyTuple_SetItem(resitem, 9, PyFloat_FromDouble(params[i]->GMP_Hardness));
+    PyTuple_SetItem(resitem, 10, PyFloat_FromDouble(params[i]->GMP_Radius));
+    PyList_SetItem(res, i, resitem);
+  }
+    
+  return res;
+};
+
 PyObject *getUFFBondStretchParams(const RDKit::ROMol &mol,
                                   const unsigned int idx1,
                                   const unsigned int idx2) {
@@ -189,6 +233,7 @@ PyObject *getUFFAngleBendParams(const RDKit::ROMol &mol,
                                 const unsigned int idx2,
                                 const unsigned int idx3) {
   PyObject *res = nullptr;
+
   ForceFields::UFF::UFFAngle uffAngleBendParams;
   if (RDKit::UFF::getUFFAngleBendParams(mol, idx1, idx2, idx3,
                                         uffAngleBendParams)) {
@@ -196,6 +241,7 @@ PyObject *getUFFAngleBendParams(const RDKit::ROMol &mol,
     PyTuple_SetItem(res, 0, PyFloat_FromDouble(uffAngleBendParams.ka));
     PyTuple_SetItem(res, 1, PyFloat_FromDouble(uffAngleBendParams.theta0));
   }
+    
   return res;
 };
 
@@ -302,7 +348,17 @@ BOOST_PYTHON_MODULE(rdForceFieldHelpers) {
                python::arg("ignoreInterfragInteractions") = true),
               python::return_value_policy<python::manage_new_object>(),
               docString.c_str());
-
+  docString =
+          "checks if UFF parameters are available for all of a molecule's atoms\n\n\
+     \n\
+     ARGUMENTS:\n\n\
+        - mol : the molecule of interest.\n\
+    \n";
+  python::def("UFFGetForceFieldTerms", RDKit::UFFGetForceFieldTerms,
+              (python::arg("mol"), python::arg("vdwThresh") = 10.0,
+               python::arg("confId") = -1,
+               python::arg("ignoreInterfragInteractions") = true),
+              docString.c_str());
   docString =
       "checks if UFF parameters are available for all of a molecule's atoms\n\n\
  \n\
@@ -416,6 +472,16 @@ RETURNS: a list of (not_converged, energy) 2-tuples. \n\
        python::arg("ignoreInterfragInteractions") = true),
       docString.c_str());
 
+//  python::def(
+//      "GetUFFAtomTypes", ForceFields::GetUFFAtomTypes,
+//      (python::arg("mol")),
+//      "Retrieves UFF atom types for atoms in the provided molecule "
+//      "as a V float value, or None if no parameters could be found");
+  python::def(
+        "GetUFFAtomTypes", ForceFields::GetUFFAtomTypes,
+        (python::arg("mol")),
+        "Retrieves UFF atom types for atoms in the provided molecule "
+        "as a V float value, or None if no parameters could be found");
   python::def(
       "GetUFFBondStretchParams", ForceFields::getUFFBondStretchParams,
       (python::arg("mol"), python::arg("idx1"), python::arg("idx2")),

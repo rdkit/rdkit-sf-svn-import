@@ -37,7 +37,6 @@ class RDKIT_FORCEFIELD_EXPORT BondStretchContrib : public ForceFieldContrib {
   double getEnergy(double *pos) const;
 
   void getGrad(double *pos, double *grad) const;
-
   virtual BondStretchContrib *copy() const {
     return new BondStretchContrib(*this);
   };
