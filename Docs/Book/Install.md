@@ -499,6 +499,26 @@ This section assumes that python is installed in `C:\Python27`, that the boost l
 -   cd to `C:\RDKit\build` and run ctest. Please note that if you have built in PostgreSQL support, the current logged in user needs to be a PostgreSQL user with database creation and superuser privileges, or the PostgreSQL test will fail. A convenient option to authenticate will be to set the `PGPASSWORD` environment variable to the PostgreSQL password of the current logged in user in the shell from which you are running ctest.
 -   You're done!
 
+## A note on python packages and pip
+
+If you are building the RDKit yourself or using certain package managers, it is possible to install 
+the binaries using Python's package manager `pip`. By doing this pip becomes aware of the RDKit's
+existence, allowing you to use the RDKit with virtualenvs or add it to the `install_requires` lists for 
+other local packages' `setup.py` files.
+
+Using the RDKit together with pip requires you to have a `.whl` file containing the RDKit's python files 
+and binary extension modules. If you do your own build, you can create this file by providing the 
+`-DRDK_INSTALL_PYTHON_PACKAGE=ON` argument to cmake (along with your usual other cmake arguments) and then
+doing `make install`. If you are on the Mac and using homebrew, you can also find a `.whl` file in the homebrew
+install files.
+
+To install the `.whl` file in a virtualenv on a system that already has the other binary dependencies installed,
+you can just `pip install` the `.whl` file in your virtualenv.
+
+**Important note**
+Since the `.whl` files created by the RDKit builds do not contain all of the RDKit's binary dependencies, they are
+not suitable for uploading to the Python package index `pypi`. 
+
 ## License
 
 This document is copyright (C) 2012-2018 by Greg Landrum
