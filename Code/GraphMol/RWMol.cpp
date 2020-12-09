@@ -31,52 +31,47 @@ RWMol &RWMol::operator=(const RWMol &other) {
   if (this != &other) {
     this->clear();
     d_partialBonds.clear();
-    numBonds = 0;
     initFromOther(other, false, -1);
   }
   return *this;
 }
 
 void RWMol::insertMol(const ROMol &other) {
-  std::vector<unsigned int> newAtomIds(other.getNumAtoms());
-  VERTEX_ITER firstA, lastA;
-  boost::tie(firstA, lastA) = boost::vertices(other.d_graph);
-  while (firstA != lastA) {
-    Atom *newAt = other.d_graph[*firstA]->copy();
-    unsigned int idx = addAtom(newAt, false, true);
-    newAtomIds[other.d_graph[*firstA]->getIdx()] = idx;
-    ++firstA;
-  }
+  //std::vector<unsigned int> newAtomIds(other.getNumAtoms());
+    unsigned int start_idx = getNumAtoms();
+    for(auto *atom : other.atoms()) {
+        addAtom(atom->copy(), false, true);
+    }
+    
   for (unsigned int ati = 0; ati < other.getNumAtoms(); ++ati) {
-    Atom *newAt = getAtomWithIdx(newAtomIds[ati]);
+    Atom *newAt = getAtomWithIdx(ati+start_idx);
     // take care of atom-numbering-dependent properties:
     INT_VECT nAtoms;
     if (newAt->getPropIfPresent(common_properties::_ringStereoAtoms, nAtoms)) {
       BOOST_FOREACH (int &val, nAtoms) {
         if (val < 0) {
-          val = -1 * (newAtomIds[(-val - 1)] + 1);
+            unsigned int old_idx = -val - 1;
+            unsigned new_idx = old_idx + start_idx;
+          val = -1 * (new_idx + 1);
         } else {
-          val = newAtomIds[val - 1] + 1;
+            unsigned int old_idx = val - 1;
+            unsigned new_idx = old_idx + start_idx;
+          val = new_idx + 1;
         }
       }
       newAt->setProp(common_properties::_ringStereoAtoms, nAtoms, true);
     }
   }
-
-  EDGE_ITER firstB, lastB;
-  boost::tie(firstB, lastB) = boost::edges(other.d_graph);
-  while (firstB != lastB) {
-    Bond *bond_p = other.d_graph[*firstB]->copy();
-    unsigned int idx1, idx2;
-    idx1 = newAtomIds[bond_p->getBeginAtomIdx()];
-    idx2 = newAtomIds[bond_p->getEndAtomIdx()];
-    bond_p->setOwningMol(this);
-    bond_p->setBeginAtomIdx(idx1);
-    bond_p->setEndAtomIdx(idx2);
-    BOOST_FOREACH (int &v, bond_p->getStereoAtoms()) { v = newAtomIds[v]; }
-    addBond(bond_p, true);
-    ++firstB;
-  }
+    for(auto *bond : other.bonds()) {
+        Bond *bond_p = bond->copy();
+        unsigned int idx1 = bond->getBeginAtomIdx() + start_idx;
+        unsigned int idx2 = bond->getEndAtomIdx() + start_idx;
+        bond_p->setOwningMol(this);
+        bond_p->setBeginAtomIdx(idx1);
+        bond_p->setEndAtomIdx(idx2);
+        BOOST_FOREACH (int &v, bond_p->getStereoAtoms()) { v += start_idx; }
+        addBond(bond_p, true);
+    }
 
   // add atom to any conformers as well, if we have any
   if (other.getNumConformers() && !getNumConformers()) {
@@ -85,8 +80,8 @@ void RWMol::insertMol(const ROMol &other) {
       auto *nconf = new Conformer(getNumAtoms());
       nconf->set3D((*cfi)->is3D());
       nconf->setId((*cfi)->getId());
-      for (unsigned int i = 0; i < newAtomIds.size(); ++i) {
-        nconf->setAtomPos(newAtomIds[i], (*cfi)->getAtomPos(i));
+      for (unsigned int i = 0; i < other.getNumAtoms(); ++i) {
+        nconf->setAtomPos(start_idx + i, (*cfi)->getAtomPos(i));
       }
       addConformer(nconf, false);
     }
@@ -97,16 +92,16 @@ void RWMol::insertMol(const ROMol &other) {
       for (cfi = beginConformers(), ocfi = other.beginConformers();
            cfi != endConformers(); ++cfi, ++ocfi) {
         (*cfi)->resize(getNumAtoms());
-        for (unsigned int i = 0; i < newAtomIds.size(); ++i) {
-          (*cfi)->setAtomPos(newAtomIds[i], (*ocfi)->getAtomPos(i));
+        for (unsigned int i = 0; i < other.getNumAtoms(); ++i) {
+          (*cfi)->setAtomPos(start_idx + i, (*ocfi)->getAtomPos(i));
         }
       }
     } else {
       for (auto cfi = this->beginConformers(); cfi != this->endConformers();
            ++cfi) {
         (*cfi)->resize(getNumAtoms());
-        for (unsigned int newAtomId : newAtomIds) {
-          (*cfi)->setAtomPos(newAtomId, RDGeom::Point3D(0.0, 0.0, 0.0));
+        for (unsigned int i=start_idx; i<getNumAtoms(); ++i) {
+          (*cfi)->setAtomPos(i, RDGeom::Point3D(0.0, 0.0, 0.0));
         }
       }
     }
@@ -116,9 +111,9 @@ void RWMol::insertMol(const ROMol &other) {
 unsigned int RWMol::addAtom(bool updateLabel) {
   auto *atom_p = new Atom();
   atom_p->setOwningMol(this);
-  MolGraph::vertex_descriptor which = boost::add_vertex(d_graph);
-  d_graph[which] = atom_p;
-  atom_p->setIdx(which);
+    unsigned int which = static_cast<unsigned int>(_atoms.size());
+    _atoms.push_back(atom_p);
+    atom_p->setIdx(which);
   if (updateLabel) {
     clearAtomBookmark(ci_RIGHTMOST_ATOM);
     setAtomBookmark(atom_p, ci_RIGHTMOST_ATOM);
@@ -140,14 +135,28 @@ void RWMol::replaceAtom(unsigned int idx, Atom *atom_pin, bool updateLabel,
   Atom *atom_p = atom_pin->copy();
   atom_p->setOwningMol(this);
   atom_p->setIdx(idx);
-  MolGraph::vertex_descriptor vd = boost::vertex(idx, d_graph);
+  // this function gets more expensive.
+  //  Could we call init from other?
+ Atom *orig = _atoms[idx];
+ 
+ atom_p->_oatoms = orig->_oatoms;
+ atom_p->_bonds = orig->_bonds;
+ for(auto *atom : _atoms) {
+     for(auto &oatom: atom->_oatoms) {
+         if(oatom == orig) {
+             oatom = atom_p;
+         }
+     }
+ }
+    
+  //MolGraph::vertex_descriptor vd = boost::vertex(idx, d_graph);
   if (preserveProps) {
     const bool replaceExistingData = false;
-    atom_p->updateProps(*d_graph[vd], replaceExistingData);
+    atom_p->updateProps(*orig, replaceExistingData);
   }
   removeSubstanceGroupsReferencingAtom(*this, idx);
-  delete d_graph[vd];
-  d_graph[vd] = atom_p;
+  delete orig;
+  _atoms[idx] = atom_p;
 
   // FIX: do something about bookmarks
 };
@@ -155,24 +164,39 @@ void RWMol::replaceAtom(unsigned int idx, Atom *atom_pin, bool updateLabel,
 void RWMol::replaceBond(unsigned int idx, Bond *bond_pin, bool preserveProps) {
   PRECONDITION(bond_pin, "bad bond passed to replaceBond");
   URANGE_CHECK(idx, getNumBonds());
-  BOND_ITER_PAIR bIter = getEdges();
-  for (unsigned int i = 0; i < idx; i++) {
-    ++bIter.first;
-  }
-  Bond *obond = d_graph[*(bIter.first)];
+  Bond *obond = _bonds[idx];
   Bond *bond_p = bond_pin->copy();
+  _bonds[idx] = bond_p;
   bond_p->setOwningMol(this);
   bond_p->setIdx(idx);
   bond_p->setBeginAtomIdx(obond->getBeginAtomIdx());
   bond_p->setEndAtomIdx(obond->getEndAtomIdx());
+    
+  {
+    auto &obonds = _atoms[obond->getBeginAtomIdx()]->_bonds;
+    for(size_t idx = 0; idx < obonds.size(); ++idx) {
+        if(obonds[idx] == obond) {
+            obonds[idx] = bond_p;
+            break;
+        }
+    }
+  }
+  {
+    auto &obonds = _atoms[obond->getEndAtomIdx()]->_bonds;
+     for(size_t idx = 0; idx < obonds.size(); ++idx) {
+         if(obonds[idx] == obond) {
+             obonds[idx] = bond_p;
+             break;
+         }
+     }
+   }
   if (preserveProps) {
     const bool replaceExistingData = false;
-    bond_p->updateProps(*d_graph[*(bIter.first)], replaceExistingData);
+    bond_p->updateProps(*obond, replaceExistingData);
   }
 
-  delete d_graph[*(bIter.first)];
-  d_graph[*(bIter.first)] = bond_p;
-  // FIX: do something about bookmarks
+    delete obond;
+    // FIX: do something about bookmarks
 
   removeSubstanceGroupsReferencingBond(*this, idx);
 };
@@ -200,7 +224,6 @@ void RWMol::removeAtom(Atom *atom) {
   PRECONDITION(static_cast<RWMol *>(&atom->getOwningMol()) == this,
                "atom not owned by this molecule");
   unsigned int idx = atom->getIdx();
-
   // remove any bookmarks which point to this atom:
   ATOM_BOOKMARK_MAP *marks = getAtomBookmarks();
   auto markI = marks->begin();
@@ -221,9 +244,10 @@ void RWMol::removeAtom(Atom *atom) {
   ADJ_ITER b1, b2;
   boost::tie(b1, b2) = getAtomNeighbors(atom);
   while (b1 != b2) {
-    nbrs.emplace_back(atom->getIdx(), rdcast<unsigned int>(*b1));
+    nbrs.emplace_back(atom->getIdx(), rdcast<unsigned int>((*b1)->getIdx()));
     ++b1;
   }
+
   for (auto &nbr : nbrs) {
     removeBond(nbr.first, nbr.second);
   }
@@ -250,10 +274,7 @@ void RWMol::removeAtom(Atom *atom) {
   //   their end indices may need to be decremented and their
   //   indices will need to be handled
   unsigned int nBonds = 0;
-  EDGE_ITER beg, end;
-  boost::tie(beg, end) = getEdges();
-  while (beg != end) {
-    Bond *bond = d_graph[*beg++];
+  for(auto *bond: _bonds) {
     unsigned int tmpIdx = bond->getBeginAtomIdx();
     if (tmpIdx > idx) {
       bond->setBeginAtomIdx(tmpIdx - 1);
@@ -274,6 +295,9 @@ void RWMol::removeAtom(Atom *atom) {
     }
   }
 
+  // Finally remove the atmo
+  _atoms.erase(_atoms.begin() + idx);
+    
   removeSubstanceGroupsReferencingAtom(*this, idx);
 
   // Remove any stereo group which includes the atom being deleted
@@ -283,13 +307,6 @@ void RWMol::removeAtom(Atom *atom) {
   // they are pretty likely to be wrong now:
   clearComputedProps(true);
 
-  atom->setOwningMol(nullptr);
-
-  // remove all connections to the atom:
-  MolGraph::vertex_descriptor vd = boost::vertex(idx, d_graph);
-  boost::clear_vertex(vd, d_graph);
-  // finally remove the vertex itself
-  boost::remove_vertex(vd, d_graph);
   delete atom;
 }
 
@@ -298,11 +315,13 @@ unsigned int RWMol::addBond(unsigned int atomIdx1, unsigned int atomIdx2,
   URANGE_CHECK(atomIdx1, getNumAtoms());
   URANGE_CHECK(atomIdx2, getNumAtoms());
   PRECONDITION(atomIdx1 != atomIdx2, "attempt to add self-bond");
-  PRECONDITION(!(boost::edge(atomIdx1, atomIdx2, d_graph).second),
+  PRECONDITION(!_atoms[atomIdx1]->hasNbr(atomIdx2),
                "bond already exists");
 
   auto *b = new Bond(bondType);
   b->setOwningMol(this);
+    Atom *a1 = getAtomWithIdx(atomIdx1);
+    Atom *a2 = getAtomWithIdx(atomIdx2);
   if (bondType == Bond::AROMATIC) {
     b->setIsAromatic(1);
     //
@@ -311,28 +330,31 @@ unsigned int RWMol::addBond(unsigned int atomIdx1, unsigned int atomIdx2,
     //   is no such thing as an aromatic atom, but bonds can be
     //   marked aromatic.
     //
-    getAtomWithIdx(atomIdx1)->setIsAromatic(1);
-    getAtomWithIdx(atomIdx2)->setIsAromatic(1);
+    a1->setIsAromatic(1);
+    a2->setIsAromatic(1);
   }
-  bool ok;
-  MolGraph::edge_descriptor which;
-  boost::tie(which, ok) = boost::add_edge(atomIdx1, atomIdx2, d_graph);
-  d_graph[which] = b;
+  //bool ok;
+  //MolGraph::edge_descriptor which;
+  //boost::tie(which, ok) = boost::add_edge(atomIdx1, atomIdx2, d_graph);
+  //d_graph[which] = b;
   // unsigned int res = rdcast<unsigned int>(boost::num_edges(d_graph));
-  ++numBonds;
-  b->setIdx(numBonds - 1);
+    auto idx = _bonds.size();
+  b->setIdx(idx);
   b->setBeginAtomIdx(atomIdx1);
   b->setEndAtomIdx(atomIdx2);
-
+    a1->_bonds.push_back(b);
+    a1->_oatoms.push_back(a2);
+    a2->_bonds.push_back(b);
+    a2->_oatoms.push_back(a1);
   // if both atoms have a degree>1, reset our ring info structure,
   // because there's a non-trivial chance that it's now wrong.
   if (dp_ringInfo && dp_ringInfo->isInitialized() &&
-      boost::out_degree(atomIdx1, d_graph) > 1 &&
-      boost::out_degree(atomIdx2, d_graph) > 1) {
+      a1->nbrs().size() > 1 &&
+      a2->nbrs().size() > 1 ) {
     dp_ringInfo->reset();
   }
-
-  return numBonds;  // res;
+    _bonds.push_back(b);
+    return idx+1;  // doesn't return the bond idx, returns num bonds
 }
 
 unsigned int RWMol::addBond(Atom *atom1, Atom *atom2, Bond::BondType bondType) {
@@ -366,39 +388,20 @@ void RWMol::removeBond(unsigned int aid1, unsigned int aid2) {
 
   // loop over neighboring double bonds and remove their stereo atom
   //  information. This is definitely now invalid (was github issue 8)
-  ADJ_ITER a1, a2;
-  boost::tie(a1, a2) = boost::adjacent_vertices(aid1, d_graph);
-  while (a1 != a2) {
-    auto oIdx = rdcast<unsigned int>(*a1);
-    ++a1;
-    if (oIdx == aid2) {
-      continue;
+    for(auto *obnd: _atoms[aid1]->bonds()) {
+        if (std::find(obnd->getStereoAtoms().begin(), obnd->getStereoAtoms().end(),
+                      aid2) != obnd->getStereoAtoms().end()) {
+          obnd->getStereoAtoms().clear();
+        }
     }
-    Bond *obnd = getBondBetweenAtoms(aid1, oIdx);
-    if (!obnd) {
-      continue;
-    }
-    if (std::find(obnd->getStereoAtoms().begin(), obnd->getStereoAtoms().end(),
-                  aid2) != obnd->getStereoAtoms().end()) {
-      obnd->getStereoAtoms().clear();
-    }
+    
+  for(auto *obnd: _atoms[aid2]->bonds()) {
+      if (std::find(obnd->getStereoAtoms().begin(), obnd->getStereoAtoms().end(),
+                    aid1) != obnd->getStereoAtoms().end()) {
+        obnd->getStereoAtoms().clear();
+      }
   }
-  boost::tie(a1, a2) = boost::adjacent_vertices(aid2, d_graph);
-  while (a1 != a2) {
-    auto oIdx = rdcast<unsigned int>(*a1);
-    ++a1;
-    if (oIdx == aid1) {
-      continue;
-    }
-    Bond *obnd = getBondBetweenAtoms(aid2, oIdx);
-    if (!obnd) {
-      continue;
-    }
-    if (std::find(obnd->getStereoAtoms().begin(), obnd->getStereoAtoms().end(),
-                  aid1) != obnd->getStereoAtoms().end()) {
-      obnd->getStereoAtoms().clear();
-    }
-  }
+
 
   // reset our ring info structure, because it is pretty likely
   // to be wrong now:
@@ -407,22 +410,16 @@ void RWMol::removeBond(unsigned int aid1, unsigned int aid2) {
   removeSubstanceGroupsReferencingBond(*this, idx);
 
   // loop over all bonds with higher indices and update their indices
-  ROMol::EDGE_ITER firstB, lastB;
-  boost::tie(firstB, lastB) = this->getEdges();
-  while (firstB != lastB) {
-    Bond *bond = (*this)[*firstB];
+  for(auto *bond : bonds()) {
     if (bond->getIdx() > idx) {
       bond->setIdx(bond->getIdx() - 1);
     }
-    ++firstB;
   }
   bnd->setOwningMol(nullptr);
-
-  MolGraph::vertex_descriptor vd1 = boost::vertex(aid1, d_graph);
-  MolGraph::vertex_descriptor vd2 = boost::vertex(aid2, d_graph);
-  boost::remove_edge(vd1, vd2, d_graph);
+    _atoms[aid1]->removeNbr(_atoms[aid2]);
+    _atoms[aid2]->removeNbr(_atoms[aid1]);
+    _bonds.erase(_bonds.begin() + bnd->getIdx());
   delete bnd;
-  --numBonds;
 }
 
 Bond *RWMol::createPartialBond(unsigned int atomIdx1, Bond::BondType bondType) {

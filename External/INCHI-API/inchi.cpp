@@ -257,7 +257,7 @@ Atom* findAlternatingBonds(
   Atom *target = nullptr, *temp;
   for (boost::tie(nid, end) = mol.getAtomNeighbors(current); nid != end;
        nid++) {
-    if (_visited.find(*nid) != _visited.end()) {
+    if (_visited.find((*nid)->getIdx()) != _visited.end()) {
       continue;
     }
     // check whether bond is valid for search to go down through it
@@ -273,7 +273,7 @@ Atom* findAlternatingBonds(
         nextBondType = Bond::DOUBLE;
       }
       if ((temp = findAlternatingBonds(
-               mol, mol.getAtomWithIdx(*nid), desiredAtomicNumber,
+               mol, *nid, desiredAtomicNumber,
                desiredAtomCharge, nextBondType, desiredEndingBondType,
                currentPathLength + 1, maxPathLength, bond, path, _visited)) !=
           nullptr) {
@@ -286,7 +286,7 @@ Atom* findAlternatingBonds(
       // this can serve as the last leg of the path. This is done only if
       // the desiredEndingBondType is not part of the alternating bonds
       if ((temp = findAlternatingBonds(
-               mol, mol.getAtomWithIdx(*nid), desiredAtomicNumber,
+               mol, *nid, desiredAtomicNumber,
                desiredAtomCharge, Bond::UNSPECIFIED, /* no next */
                desiredEndingBondType, currentPathLength + 1,
                0, /* this limits the recursion */
@@ -312,8 +312,8 @@ int getNumDoubleBondedNegativelyChargedNeighboringSi(ROMol& mol, Atom* a) {
   int nSi = 0;
   int thisId = a->getIdx();
   while (nid1 != end1) {
-    Atom* nbr = mol.getAtomWithIdx(*nid1);
-    Bond* bond = mol.getBondBetweenAtoms(*nid1, thisId);
+    Atom* nbr = *nid1;
+    Bond* bond = mol.getBondBetweenAtoms((*nid1)->getIdx(), thisId);
     if (nbr->getAtomicNum() == 14 && nbr->getFormalCharge() == -1 &&
         bond->getBondType() == Bond::DOUBLE) {
       nSi++;
@@ -486,8 +486,8 @@ bool _Valence5NCleanUp4(RWMol& mol, Atom* atom) {
   Bond* bonds[2];
   boost::tie(nid1, end1) = mol.getAtomNeighbors(atom);
   while (nid1 != end1) {
-    Atom* nbr = mol.getAtomWithIdx(*nid1);
-    Bond* bond = mol.getBondBetweenAtoms(*nid1, thisId);
+    Atom* nbr = *nid1;
+    Bond* bond = mol.getBondBetweenAtoms((*nid1)->getIdx(), thisId);
     if (nbr->getAtomicNum() == 14 && nbr->getFormalCharge() == -1 &&
         bond->getBondType() == Bond::DOUBLE) {
       if (nSi >= 2) {
@@ -953,9 +953,9 @@ bool _Valence7SCleanUp1(RWMol& mol, Atom* atom) {
   RWMol::ADJ_ITER nid, nid1, end1;
   boost::tie(nid1, end1) = mol.getAtomNeighbors(atom);
   while (nid1 != end1) {
-    Atom* otherAtom = mol.getAtomWithIdx(*nid1);
+    Atom* otherAtom = *nid1;
     if (otherAtom->getAtomicNum() == 8) {
-      if (mol.getBondBetweenAtoms(*nid1, aid)->getBondType() != Bond::DOUBLE) {
+      if (mol.getBondBetweenAtoms((*nid1)->getIdx(), aid)->getBondType() != Bond::DOUBLE) {
         neighborsO = 100;
         break;
       } else {
@@ -963,7 +963,7 @@ bool _Valence7SCleanUp1(RWMol& mol, Atom* atom) {
         neighborsO++;
       }
     } else if (otherAtom->getAtomicNum() == 6) {
-      if (mol.getBondBetweenAtoms(*nid1, aid)->getBondType() != Bond::SINGLE) {
+      if (mol.getBondBetweenAtoms((*nid1)->getIdx(), aid)->getBondType() != Bond::SINGLE) {
         neighborsC = 100;
         break;
       } else {
@@ -976,8 +976,8 @@ bool _Valence7SCleanUp1(RWMol& mol, Atom* atom) {
     nid1++;
   }
   if (neighborsC == 1 || neighborsO == 3) {
-    mol.getBondBetweenAtoms(*nid, aid)->setBondType(Bond::SINGLE);
-    Atom* otherAtom = mol.getAtomWithIdx(*nid);
+    mol.getBondBetweenAtoms((*nid)->getIdx(), aid)->setBondType(Bond::SINGLE);
+    Atom* otherAtom = *nid;
     otherAtom->setFormalCharge(-1);
     atom->setFormalCharge(0);
     otherAtom->calcExplicitValence(false);
@@ -1088,7 +1088,7 @@ bool _Valence8ClCleanUp1(RWMol& mol, Atom* atom) {
   RWMol::ADJ_ITER nid1, end1;
   boost::tie(nid1, end1) = mol.getAtomNeighbors(atom);
   while (nid1 != end1) {
-    if (mol.getAtomWithIdx(*nid1)->getAtomicNum() != 8) {
+    if ((*nid1)->getAtomicNum() != 8) {
       neighborsAllO = false;
       break;
     }
@@ -1098,10 +1098,10 @@ bool _Valence8ClCleanUp1(RWMol& mol, Atom* atom) {
     atom->setFormalCharge(3);
     boost::tie(nid1, end1) = mol.getAtomNeighbors(atom);
     while (nid1 != end1) {
-      Bond* b = mol.getBondBetweenAtoms(aid, *nid1);
+      Bond* b = mol.getBondBetweenAtoms(aid, (*nid1)->getIdx());
       if (b->getBondType() == Bond::DOUBLE) {
         b->setBondType(Bond::SINGLE);
-        Atom* otherAtom = mol.getAtomWithIdx(*nid1);
+        Atom* otherAtom = *nid1;
         otherAtom->setFormalCharge(-1);
         otherAtom->calcExplicitValence(false);
       }
@@ -1241,7 +1241,7 @@ void cleanUp(RWMol& mol) {
           if ((*ai)->getDegree() == 1) {
             RWMol::ADJ_ITER nid, end;
             boost::tie(nid, end) = mol.getAtomNeighbors(*ai);
-            if (mol.getAtomWithIdx(*nid)->getAtomicNum() == 34) {
+            if ((*nid)->getAtomicNum() == 34) {
               mol.getBondBetweenAtoms((*ai)->getIdx(), *nid)
                   ->setBondType(Bond::SINGLE);
             }
@@ -1486,15 +1486,15 @@ RWMol* InchiToMol(const std::string& inchi, ExtraInchiReturnValues& rv,
                   m->getAtomNeighbors(m->getAtomWithIdx(left));
               int cip = -1, _cip;
               while (begin != end) {
-                if (*begin != right) {
-                  if ((_cip = ranks[*begin]) > cip) {
+                if ((*begin)->getIdx() != right) {
+                  if ((_cip = ranks[(*begin)->getIdx()]) > cip) {
                     if (leftNbr >= 0) {
                       extraLeftNbr = leftNbr;
                     }
-                    leftNbr = *begin;
+                    leftNbr = (*begin)->getIdx();
                     cip = _cip;
                   } else {
-                    extraLeftNbr = *begin;
+                    extraLeftNbr = (*begin)->getIdx();
                   }
                 }
                 begin++;
@@ -1503,15 +1503,15 @@ RWMol* InchiToMol(const std::string& inchi, ExtraInchiReturnValues& rv,
                   m->getAtomNeighbors(m->getAtomWithIdx(right));
               cip = -1;
               while (begin != end) {
-                if (*begin != left) {
-                  if ((_cip = ranks[*begin]) > cip) {
+                if ((*begin)->getIdx() != left) {
+                  if ((_cip = ranks[(*begin)->getIdx()]) > cip) {
                     if (rightNbr >= 0) {
                       extraRightNbr = rightNbr;
                     }
-                    rightNbr = *begin;
+                    rightNbr = (*begin)->getIdx();
                     cip = _cip;
                   } else {
-                    extraRightNbr = *begin;
+                    extraRightNbr = (*begin)->getIdx();
                   }
                 }
                 begin++;
@@ -1864,7 +1864,7 @@ std::string MolToInchi(const ROMol& mol, ExtraInchiReturnValues& rv,
         int cip = 0;
         // if (m->getAtomWithIdx(*nbrIter)->hasProp("_CIPRank"))
         //   m->getAtomWithIdx(*nbrIter)->getProp("_CIPRank", cip);
-        neighbors.emplace_back(cip, *nbrIter);
+        neighbors.emplace_back(cip, (*nbrIter)->getIdx());
         ++nbrIter;
       }
       // std::sort(neighbors.begin(), neighbors.end());

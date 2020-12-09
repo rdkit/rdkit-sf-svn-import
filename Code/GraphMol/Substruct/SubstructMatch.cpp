@@ -142,7 +142,7 @@ void ResSubstructMatchHelper_(const ResSubstructMatchHelperArgs_ &args,
                               unsigned int bi, unsigned int ei);
 
 typedef std::list<
-    std::pair<MolGraph::vertex_descriptor, MolGraph::vertex_descriptor>>
+    std::pair<int, int>>
     ssPairType;
 
 class MolMatchFinalCheckFunctor {
@@ -181,15 +181,18 @@ class MolMatchFinalCheckFunctor {
     std::unordered_map<unsigned int, bool> matches;
 
     // check chiral atoms:
+    auto d_query_atoms = &d_query.atoms()[0];
+    auto d_mol_atoms = &d_mol.atoms()[0];
     for (unsigned int i = 0; i < d_query.getNumAtoms(); ++i) {
-      const Atom *qAt = d_query.getAtomWithIdx(q_c[i]);
+      const Atom *qAt = d_query_atoms[q_c[i]];
+      //const Atom *qAt = d_query.getAtomWithIdx(q_c[i]);
 
       // With less than 3 neighbors we can't establish CW/CCW parity,
       // so query will be a match if it has any kind of chirality.
       if (qAt->getDegree() < 3 || !hasChiralLabel(qAt)) {
         continue;
       }
-      const Atom *mAt = d_mol.getAtomWithIdx(m_c[i]);
+      const Atom *mAt = d_mol_atoms[m_c[i]];
       if (!hasChiralLabel(mAt)) {
         return false;
       }
@@ -200,8 +203,8 @@ class MolMatchFinalCheckFunctor {
       INT_LIST qOrder;
       INT_LIST mOrder;
       for (unsigned int j = 0; j < d_query.getNumAtoms(); ++j) {
-        const Bond *qB = d_query.getBondBetweenAtoms(q_c[i], q_c[j]);
-        const Bond *mB = d_mol.getBondBetweenAtoms(m_c[i], m_c[j]);
+        const Bond *qB = d_query_atoms[q_c[i]]->getBondTo(q_c[j]);//d_query.getBondBetweenAtoms(q_c[i], q_c[j]);
+        const Bond *mB = d_mol_atoms[m_c[i]]->getBondTo(m_c[j]);//d_mol.getBondBetweenAtoms(m_c[i], m_c[j]);
         if (qB && mB) {
           mOrder.push_back(mB->getIdx());
           qOrder.push_back(qB->getIdx());
@@ -218,8 +221,8 @@ class MolMatchFinalCheckFunctor {
       mOrder.insert(mOrder.end(), unmatchedNeighbors, -1);
 
       INT_LIST moOrder;
-      for (const auto &bond : make_iterator_range(d_mol.getAtomBonds(mAt))) {
-        int dbidx = d_mol[bond]->getIdx();
+      for (const auto *bond : mAt->bonds()) {
+        int dbidx = bond->getIdx();
         if (std::find(mOrder.begin(), mOrder.end(), dbidx) != mOrder.end()) {
           moOrder.push_back(dbidx);
         } else {
@@ -268,9 +271,9 @@ class MolMatchFinalCheckFunctor {
       if (qBnd->getStereoAtoms().size() != 2) {
         continue;
       }
-
-      const Bond *mBnd = d_mol.getBondBetweenAtoms(
-          q_to_mol[qBnd->getBeginAtomIdx()], q_to_mol[qBnd->getEndAtomIdx()]);
+      const Bond *mBnd = d_mol_atoms[q_to_mol[qBnd->getBeginAtomIdx()]]->getBondTo(q_to_mol[qBnd->getEndAtomIdx()]);
+      //const Bond *mBnd = d_mol.getBondBetweenAtoms(
+      //  q_to_mol[qBnd->getBeginAtomIdx()], q_to_mol[qBnd->getEndAtomIdx()]);
       CHECK_INVARIANT(mBnd, "Matching bond not found");
       if (mBnd->getBondType() != Bond::DOUBLE ||
           qBnd->getStereo() <= Bond::STEREOANY) {
@@ -333,55 +336,50 @@ class AtomLabelFunctor {
  public:
   AtomLabelFunctor(const ROMol &query, const ROMol &mol,
                    const SubstructMatchParameters &ps)
-      : d_query(query), d_mol(mol), d_params(ps){};
+      : d_query(query.atoms()), d_mol(mol.atoms()), d_params(ps){};
   bool operator()(unsigned int i, unsigned int j) const {
     bool res = false;
+    const Atom *qAt = d_query[i];
+    const Atom *mAt = d_mol[j];
     if (d_params.useChirality) {
-      const Atom *qAt = d_query.getAtomWithIdx(i);
       if (qAt->getChiralTag() == Atom::CHI_TETRAHEDRAL_CW ||
           qAt->getChiralTag() == Atom::CHI_TETRAHEDRAL_CCW) {
-        const Atom *mAt = d_mol.getAtomWithIdx(j);
         if (mAt->getChiralTag() != Atom::CHI_TETRAHEDRAL_CW &&
             mAt->getChiralTag() != Atom::CHI_TETRAHEDRAL_CCW) {
           return false;
         }
       }
     }
-    res = atomCompat(d_query[i], d_mol[j], d_params);
+    res = atomCompat(qAt, mAt, d_params);
     return res;
   }
 
  private:
-  const ROMol &d_query;
-  const ROMol &d_mol;
+  const std::vector<Atom*> &d_query;
+  const std::vector<Atom*> &d_mol;
   const SubstructMatchParameters &d_params;
 };
 class BondLabelFunctor {
  public:
-  BondLabelFunctor(const ROMol &query, const ROMol &mol,
-                   const SubstructMatchParameters &ps)
-      : d_query(query), d_mol(mol), d_params(ps){};
-  bool operator()(MolGraph::edge_descriptor i,
-                  MolGraph::edge_descriptor j) const {
+  BondLabelFunctor(const SubstructMatchParameters &ps)
+      : d_params(ps){};
+  bool operator()(const Bond * qBnd,
+                  const Bond * mBnd) const {
     if (d_params.useChirality) {
-      const Bond *qBnd = d_query[i];
       if (qBnd->getBondType() == Bond::DOUBLE &&
           qBnd->getStereo() > Bond::STEREOANY) {
-        const Bond *mBnd = d_mol[j];
         if (mBnd->getBondType() == Bond::DOUBLE &&
             mBnd->getStereo() <= Bond::STEREOANY) {
           return false;
         }
       }
     }
-    bool res = bondCompat(d_query[i], d_mol[j], d_params);
+    bool res = bondCompat(qBnd, mBnd, d_params);
     return res;
   }
 
  private:
-  const ROMol &d_query;
-  const ROMol &d_mol;
-  const SubstructMatchParameters &d_params;
+    const SubstructMatchParameters &d_params;
 };
 void mergeMatchVect(std::vector<MatchVectType> &matches,
                     const std::vector<MatchVectType> &matchesTmp,
@@ -432,16 +430,16 @@ std::vector<MatchVectType> SubstructMatch(
   }
 
   detail::AtomLabelFunctor atomLabeler(query, mol, params);
-  detail::BondLabelFunctor bondLabeler(query, mol, params);
+  detail::BondLabelFunctor bondLabeler(params);
   detail::MolMatchFinalCheckFunctor matchChecker(query, mol, params);
 
   std::list<detail::ssPairType> pms;
 #if 0
-    bool found=boost::ullmann_all(query.getTopology(),mol.getTopology(),
+    bool found=boost::ullmann_all(query,mol,
                                   atomLabeler,bondLabeler,pms);
 #else
   bool found =
-      boost::vf2_all(query.getTopology(), mol.getTopology(), atomLabeler,
+      boost::vf2_all(query, mol, atomLabeler,
                      bondLabeler, matchChecker, pms, params.maxMatches);
 #endif
   std::vector<MatchVectType> matches;
@@ -571,23 +569,24 @@ unsigned int RecursiveMatcher(const ROMol &mol, const ROMol &query,
   }
 
   detail::AtomLabelFunctor atomLabeler(query, mol, params);
-  detail::BondLabelFunctor bondLabeler(query, mol, params);
+  detail::BondLabelFunctor bondLabeler(params);
   detail::MolMatchFinalCheckFunctor matchChecker(query, mol, params);
 
   matches.clear();
   matches.resize(0);
-  std::list<detail::ssPairType> pms;
+  std::vector<detail::ssPairType> pms;
+    pms.reserve(query.getNumAtoms());
 #if 0
       bool found=boost::ullmann_all(query.getTopology(),mol.getTopology(),
 				    atomLabeler,bondLabeler,pms);
 #else
-  bool found = boost::vf2_all(query.getTopology(), mol.getTopology(),
+  bool found = boost::vf2_all(query, mol,
                               atomLabeler, bondLabeler, matchChecker, pms);
 #endif
   unsigned int res = 0;
   if (found) {
     matches.reserve(pms.size());
-    for (std::list<detail::ssPairType>::const_iterator iter1 = pms.begin();
+    for (std::vector<detail::ssPairType>::const_iterator iter1 = pms.begin();
          iter1 != pms.end(); ++iter1) {
       if (!query.hasProp(common_properties::_queryRootAtom)) {
         matches.push_back(iter1->begin()->second);
@@ -596,7 +595,7 @@ unsigned int RecursiveMatcher(const ROMol &mol, const ROMol &query,
         query.getProp(common_properties::_queryRootAtom, rootIdx);
         bool found = false;
         for (const auto &pairIter : *iter1) {
-          if (pairIter.first == static_cast<unsigned int>(rootIdx)) {
+          if (pairIter.first == rootIdx) {
             matches.push_back(pairIter.second);
             found = true;
             break;

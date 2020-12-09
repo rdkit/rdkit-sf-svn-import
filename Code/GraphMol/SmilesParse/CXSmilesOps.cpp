@@ -398,9 +398,9 @@ bool parse_linknodes(Iterator &first, Iterator last, RDKit::RWMol &mol) {
       }
     } else if (mol.getAtomWithIdx(atidx)->getDegree() == 2) {
       auto nbrs = mol.getAtomNeighbors(mol.getAtomWithIdx(atidx));
-      idx1 = *nbrs.first;
+      idx1 = (*nbrs.first)->getIdx();
       nbrs.first++;
-      idx2 = *nbrs.first;
+      idx2 = (*nbrs.first)->getIdx();
     } else {
       return false;
     }
@@ -466,9 +466,7 @@ bool parse_variable_attachments(Iterator &first, Iterator last,
     }
     endPts += ")";
 
-    for (auto nbri : boost::make_iterator_range(
-             mol.getAtomBonds(mol.getAtomWithIdx(at1idx)))) {
-      auto bnd = mol[nbri];
+    for (auto *bnd : mol.getAtomWithIdx(at1idx)->bonds()) { 
       bnd->setProp(common_properties::_MolFileBondEndPts, endPts);
       bnd->setProp(common_properties::_MolFileBondAttach, std::string("ANY"));
     }

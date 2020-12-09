@@ -29,7 +29,7 @@ public:
     CIPMolIter(ROMol &mol, U pos) : d_mol{mol}, d_pos{std::move(pos)} {}
 
     T &operator*() {
-      d_current = d_mol[*d_pos];
+      d_current = *d_pos;
       return d_current;
     }
 
@@ -77,7 +77,7 @@ public:
 
   Atom *getAtom(int idx) const;
 
-  CXXAtomIterator<MolGraph, Atom *> atoms() const;
+  const std::vector<Atom*> & atoms() const { return d_mol.atoms(); }
 
   Bond *getBond(int idx) const;
 

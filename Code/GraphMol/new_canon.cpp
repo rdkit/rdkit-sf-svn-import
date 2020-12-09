@@ -310,11 +310,7 @@ void rankWithFunctor(T &ftor, bool breakTies, int *order,
 namespace {
 bool hasRingNbr(const ROMol &mol, const Atom *at) {
   PRECONDITION(at, "bad pointer");
-  ROMol::ADJ_ITER beg, end;
-  boost::tie(beg, end) = mol.getAtomNeighbors(at);
-  while (beg != end) {
-    const Atom *nbr = mol[*beg];
-    ++beg;
+  for(auto *nbr : at->nbrs()) {
     if ((nbr->getChiralTag() == Atom::CHI_TETRAHEDRAL_CW ||
          nbr->getChiralTag() == Atom::CHI_TETRAHEDRAL_CCW) &&
         nbr->hasProp(common_properties::_ringStereoAtoms)) {
@@ -327,13 +323,8 @@ bool hasRingNbr(const ROMol &mol, const Atom *at) {
 void getNbrs(const ROMol &mol, const Atom *at, int *ids) {
   PRECONDITION(at, "bad pointer");
   PRECONDITION(ids, "bad pointer");
-  ROMol::OEDGE_ITER beg, end;
-  boost::tie(beg, end) = mol.getAtomBonds(at);
   unsigned int idx = 0;
-
-  while (beg != end) {
-    const Bond *bond = (mol)[*beg];
-    ++beg;
+  for(auto *bond : at->bonds()) {
     unsigned int nbrIdx = bond->getOtherAtomIdx(at->getIdx());
     ids[idx] = nbrIdx;
     ++idx;
@@ -357,11 +348,7 @@ bondholder makeBondHolder(const Bond *bond, unsigned int otherIdx,
 void getBonds(const ROMol &mol, const Atom *at, std::vector<bondholder> &nbrs,
               bool includeChirality) {
   PRECONDITION(at, "bad pointer");
-  ROMol::OEDGE_ITER beg, end;
-  boost::tie(beg, end) = mol.getAtomBonds(at);
-  while (beg != end) {
-    const Bond *bond = (mol)[*beg];
-    ++beg;
+  for(auto *bond : at->bonds()) {
     nbrs.push_back(makeBondHolder(bond, bond->getOtherAtomIdx(at->getIdx()),
                                   includeChirality));
   }
@@ -371,11 +358,7 @@ void getBonds(const ROMol &mol, const Atom *at, std::vector<bondholder> &nbrs,
 void getChiralBonds(const ROMol &mol, const Atom *at,
                     std::vector<bondholder> &nbrs) {
   PRECONDITION(at, "bad pointer");
-  ROMol::OEDGE_ITER beg, end;
-  boost::tie(beg, end) = mol.getAtomBonds(at);
-  while (beg != end) {
-    const Bond *bond = (mol)[*beg];
-    ++beg;
+  for(auto *bond: at->bonds()) {
     unsigned int nbrIdx = bond->getOtherAtomIdx(at->getIdx());
     const Atom *nbr = mol.getAtomWithIdx(nbrIdx);
     unsigned int degreeNbr = nbr->getDegree();

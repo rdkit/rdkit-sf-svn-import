@@ -193,10 +193,11 @@ std::vector<ROMOL_SPTR> replaceSubstructs(
     while (nbrIdx != endNbrs) {
       // we don't want to duplicate any "intra-match" bonds:
       if (!std::binary_search(sortMatch.begin(), sortMatch.end(),
-                              int(*nbrIdx))) {
-        Bond *oBond = newMol->getBondBetweenAtoms(match[0], *nbrIdx);
+                              int((*nbrIdx)->getIdx()))) {
+        Bond *oBond = newMol->getBondBetweenAtoms((unsigned int)match[0], *nbrIdx);
         CHECK_INVARIANT(oBond, "required bond not found");
-        newMol->addBond(numOrigAtoms + replacementConnectionPoint, *nbrIdx,
+        newMol->addBond(numOrigAtoms + replacementConnectionPoint,
+                        (*nbrIdx)->getIdx(),
                         oBond->getBondType());
       }
       nbrIdx++;
@@ -272,15 +273,14 @@ ROMol *replaceSidechains(const ROMol &mol, const ROMol &coreQuery,
       ROMol::ADJ_ITER nbrIdx, endNbrs;
       boost::tie(nbrIdx, endNbrs) =
           newMol->getAtomNeighbors(newMol->getAtomWithIdx(mvit->second));
-      while (nbrIdx != endNbrs) {
-        if (!matchingIndices[*nbrIdx]) {
+       for(auto *nbr: newMol->getAtomWithIdx(mvit->second)->nbrs()) {
+        if (!matchingIndices[nbr->getIdx()]) {
           // this neighbor isn't in the match, convert it to a dummy atom and
           // save it
-          Atom *at = newMol->getAtomWithIdx(*nbrIdx);
-          at->setAtomicNum(0);
+          nbr->setAtomicNum(0);
           ++nDummies;
-          at->setIsotope(nDummies);
-          keepList.push_back(at);
+          nbr->setIsotope(nDummies);
+          keepList.push_back(nbr);
         }
         nbrIdx++;
       }
@@ -384,11 +384,11 @@ ROMol *replaceCore(const ROMol &mol, const ROMol &core,
       std::list<unsigned int> nbrList;
       ROMol::ADJ_ITER nbrIter, endNbrs;
       boost::tie(nbrIter, endNbrs) = newMol->getAtomNeighbors(sidechainAtom);
-      while (nbrIter != endNbrs && (*nbrIter) < origNumAtoms) {
+      while (nbrIter != endNbrs && (*nbrIter)->getIdx() < origNumAtoms) {
         // we need to add bonds and atoms to the molecule while looping
         // over neighbors. This invalidates iterators, so collect a list
         // of our neighbors now:
-        nbrList.push_back(*nbrIter);
+        nbrList.push_back((*nbrIter)->getIdx());
         ++nbrIter;
       }
       unsigned int whichNbr = 0;
@@ -575,10 +575,7 @@ ROMol *MurckoDecompose(const ROMol &mol) {
       bool removeIt = true;
 
       // check if the atom has a neighboring keeper:
-      ROMol::ADJ_ITER nbrIdx, endNbrs;
-      boost::tie(nbrIdx, endNbrs) = res->getAtomNeighbors(atom);
-      while (nbrIdx != endNbrs) {
-        Atom *nbr = (*res)[*nbrIdx];
+      for(auto *nbr : atom->nbrs()) {
         if (keepAtoms[nbr->getIdx()]) {
           if (res->getBondBetweenAtoms(atom->getIdx(), nbr->getIdx())
                   ->getBondType() == Bond::DOUBLE) {
@@ -598,7 +595,6 @@ ROMol *MurckoDecompose(const ROMol &mol) {
             nbr->setChiralTag(Atom::CHI_UNSPECIFIED);
           }
         }
-        ++nbrIdx;
       }
 
       if (removeIt) {
@@ -659,11 +655,7 @@ void addRecursiveQueries(
     (*reactantLabels).resize(0);
   }
 
-  ROMol::VERTEX_ITER atBegin, atEnd;
-  boost::tie(atBegin, atEnd) = mol.getVertices();
-  while (atBegin != atEnd) {
-    Atom *at = mol[*atBegin];
-    ++atBegin;
+  for(auto *at : mol.atoms()) {
     if (!at->hasProp(propName)) {
       continue;
     }

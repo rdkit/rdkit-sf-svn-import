@@ -439,12 +439,12 @@ void set13Bounds(const ROMol &mol, DistGeom::BoundsMatPtr mmat,
       //  system
 
       while (beg1 != end1) {
-        const Bond *bnd1 = mol[*beg1];
+        const Bond *bnd1 = *beg1;
         bid1 = bnd1->getIdx();
         aid1 = bnd1->getOtherAtomIdx(aid2);
         boost::tie(beg2, end2) = mol.getAtomBonds(atom);
         while (beg2 != beg1) {
-          const Bond *bnd2 = mol[*beg2];
+          const Bond *bnd2 = *beg2;
           bid2 = bnd2->getIdx();
           // invar = firstThousandPrimes[bid1]*firstThousandPrimes[bid2];
           if (accumData.bondAngles->getVal(bid1, bid2) < 0.0) {
@@ -495,12 +495,12 @@ void set13Bounds(const ROMol &mol, DistGeom::BoundsMatPtr mmat,
     } else if (visited[aid2] == 0) {
       // non-ring atoms - we will simply use angles based on hybridization
       while (beg1 != end1) {
-        const Bond *bnd1 = mol[*beg1];
+        const Bond *bnd1 = *beg1;
         bid1 = bnd1->getIdx();
         aid1 = bnd1->getOtherAtomIdx(aid2);
         boost::tie(beg2, end2) = mol.getAtomBonds(atom);
         while (beg2 != beg1) {
-          const Bond *bnd2 = mol[*beg2];
+          const Bond *bnd2 = *beg2;
           bid2 = bnd2->getIdx();
           if (ahyb == Atom::SP) {
             angle = M_PI;
@@ -854,8 +854,8 @@ bool _checkMacrocycleAllInSameRingAmideEster14(const ROMol &mol, const Bond *bnd
     if (mol.getAtomDegree(atm2) == 3 && mol.getAtomDegree(atm3) == 3) {
       boost::tie(nbrIdx, endNbrs) = mol.getAtomNeighbors(atm2);
       while (nbrIdx != endNbrs) {
-        if (*nbrIdx != atm1->getIdx() && *nbrIdx != atm3->getIdx()) {
-          const auto &res = mol.getAtomWithIdx(*nbrIdx);
+        if ((*nbrIdx)->getIdx() != atm1->getIdx() && (*nbrIdx)->getIdx() != atm3->getIdx()) {
+          const auto &res = *nbrIdx;
           const auto &resbnd = mol.getBondBetweenAtoms(atm2->getIdx(), *nbrIdx);
           if ((res->getAtomicNum() != 6 && res->getAtomicNum() != 1) || //check is (methylated)amide
               resbnd->getBondType() != Bond::SINGLE) {
@@ -868,8 +868,8 @@ bool _checkMacrocycleAllInSameRingAmideEster14(const ROMol &mol, const Bond *bnd
 
       boost::tie(nbrIdx, endNbrs) = mol.getAtomNeighbors(atm3);
       while (nbrIdx != endNbrs) {
-        if (*nbrIdx != atm2->getIdx() && *nbrIdx != atm4->getIdx()) {
-          const auto &res = mol.getAtomWithIdx(*nbrIdx);
+        if ((*nbrIdx)->getIdx() != atm2->getIdx() && (*nbrIdx)->getIdx() != atm4->getIdx()) {
+          const auto &res = *nbrIdx;
           const auto &resbnd = mol.getBondBetweenAtoms(atm3->getIdx(), *nbrIdx);
           if (res->getAtomicNum() != 8 || //check for the carbonyl oxygen
               resbnd->getBondType() != Bond::DOUBLE) {
@@ -892,7 +892,7 @@ bool _isCarbonyl(const ROMol &mol, const Atom *at) {
     ROMol::ADJ_ITER nbrIdx, endNbrs;
     boost::tie(nbrIdx, endNbrs) = mol.getAtomNeighbors(at);
     while (nbrIdx != endNbrs) {
-      unsigned int atNum = mol.getAtomWithIdx(*nbrIdx)->getAtomicNum();
+      unsigned int atNum = (*nbrIdx)->getAtomicNum();
       if ((atNum == 8 || atNum == 7) &&
           mol.getBondBetweenAtoms(at->getIdx(), *nbrIdx)->getBondType() ==
               Bond::DOUBLE) {
@@ -1593,12 +1593,12 @@ void set14Bounds(const ROMol &mol, DistGeom::BoundsMatPtr mmat,
     aid3 = (*bi)->getEndAtomIdx();
     boost::tie(beg1, end1) = mol.getAtomBonds(mol.getAtomWithIdx(aid2));
     while (beg1 != end1) {
-      const Bond *bnd1 = mol[*beg1];
+      const Bond *bnd1 = *beg1;
       bid1 = bnd1->getIdx();
       if (bid1 != bid2) {
         boost::tie(beg2, end2) = mol.getAtomBonds(mol.getAtomWithIdx(aid3));
         while (beg2 != end2) {
-          const Bond *bnd3 = mol[*beg2];
+          const Bond *bnd3 = *beg2;
           bid3 = bnd3->getIdx();
           if (bid3 != bid2) {
             id1 = nb * nb * bid1 + nb * bid2 + bid3;

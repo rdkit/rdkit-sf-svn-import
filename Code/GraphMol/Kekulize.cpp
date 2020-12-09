@@ -96,18 +96,14 @@ void markDbondCands(RWMol &mol, const INT_VECT &allAtms,
       done.push_back(allAtm);
       // make sure all the bonds on this atom are also non aromatic
       // i.e. can't have aromatic bond onto a non-aromatic atom
-      RWMol::OEDGE_ITER beg, end;
-      boost::tie(beg, end) = mol.getAtomBonds(at);
-      while (beg != end) {
-        // ok we can't have an aromatic atom
-        if (mol[*beg]->getIsAromatic()) {
+      for(auto *bond : at->bonds()) {
+        if (bond->getIsAromatic()) {
           std::ostringstream errout;
           errout << "Aromatic bonds on non aromatic atom " << at->getIdx();
           std::string msg = errout.str();
           BOOST_LOG(rdErrorLog) << msg << std::endl;
           throw AtomKekulizeException(msg, at->getIdx());
         }
-        ++beg;
       }
       continue;
     }
@@ -117,10 +113,7 @@ void markDbondCands(RWMol &mol, const INT_VECT &allAtms,
     // bonds that we will later mark as being single:
     int sbo = 0;
     unsigned nToIgnore = 0;
-    RWMol::OEDGE_ITER beg, end;
-    boost::tie(beg, end) = mol.getAtomBonds(at);
-    while (beg != end) {
-      Bond *bond = mol[*beg];
+    for(auto *bond : at->bonds()) {
       if (bond->getIsAromatic() && (bond->getBondType() == Bond::SINGLE ||
                                     bond->getBondType() == Bond::DOUBLE ||
                                     bond->getBondType() == Bond::AROMATIC)) {
@@ -136,7 +129,6 @@ void markDbondCands(RWMol &mol, const INT_VECT &allAtms,
           ++nToIgnore;
         }
       }
-      ++beg;
     }
 
     if (!at->getAtomicNum()) {
@@ -263,22 +255,22 @@ bool kekulizeWorker(RWMol &mol, const INT_VECT &allAtms,
           mol.getAtomNeighbors(mol.getAtomWithIdx(curr));
       while (nbrIdx != endNbrs) {
         // ignore if the neighbor has already been dealt with before
-        if (std::find(done.begin(), done.end(), static_cast<int>(*nbrIdx)) !=
+        if (std::find(done.begin(), done.end(), static_cast<int>((*nbrIdx)->getIdx())) !=
             done.end()) {
           ++nbrIdx;
           continue;
         }
         // ignore if the neighbor is not part of the fused system
         if (std::find(allAtms.begin(), allAtms.end(),
-                      static_cast<int>(*nbrIdx)) == allAtms.end()) {
+                      static_cast<int>((*nbrIdx)->getIdx())) == allAtms.end()) {
           ++nbrIdx;
           continue;
         }
 
         // if the neighbor is not on the stack add it
         if (std::find(astack.begin(), astack.end(),
-                      static_cast<int>(*nbrIdx)) == astack.end()) {
-          astack.push_back(rdcast<int>(*nbrIdx));
+                      static_cast<int>((*nbrIdx)->getIdx())) == astack.end()) {
+          astack.push_back(rdcast<int>((*nbrIdx)->getIdx()));
         }
 
         // check if the neighbor is also a candidate for a double bond
@@ -290,11 +282,11 @@ bool kekulizeWorker(RWMol &mol, const INT_VECT &allAtms,
         // could lead to the same failure. The full fix would require
         // a fairly detailed analysis of all bonds in the molecule to determine
         // which of them is eligible to be converted.
-        if (cCand && dBndCands[*nbrIdx] &&
-            (mol.getBondBetweenAtoms(curr, *nbrIdx)->getIsAromatic() ||
+        if (cCand && dBndCands[(*nbrIdx)->getIdx()] &&
+            (mol.getBondBetweenAtoms(curr, (*nbrIdx)->getIdx())->getIsAromatic() ||
              mol.getAtomWithIdx(curr)->getAtomicNum() == 0 ||
-             mol.getAtomWithIdx(*nbrIdx)->getAtomicNum() == 0)) {
-          opts.push_back(rdcast<int>(*nbrIdx));
+             mol.getAtomWithIdx((*nbrIdx)->getIdx())->getAtomicNum() == 0)) {
+          opts.push_back(rdcast<int>((*nbrIdx)->getIdx()));
         }  // end of curr atoms can have a double bond
         ++nbrIdx;
       }  // end of looping over neighbors

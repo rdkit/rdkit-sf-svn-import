@@ -202,9 +202,7 @@ bool TautomerEnumerator::setTautomerStereoAndIsoHs(
       // look around the beginning and end atoms and check for bonds with
       // direction set
       for (auto atom : {bond->getBeginAtom(), bond->getEndAtom()}) {
-        for (const auto &nbri :
-             boost::make_iterator_range(mol.getAtomBonds(atom))) {
-          const auto &obnd = mol[nbri];
+        for (const auto *obnd :atom->bonds()) {
           if (obnd->getBondDir() == Bond::ENDDOWNRIGHT ||
               obnd->getBondDir() == Bond::ENDUPRIGHT) {
             bondsToClearDirs.push_back(obnd->getIdx());

@@ -193,10 +193,7 @@ double *getDistanceMat(const ROMol &mol, bool useBO, bool useAtomWts,
     dMat[i * nAts + i] = 0.0;
   }
 
-  ROMol::EDGE_ITER firstB, lastB;
-  boost::tie(firstB, lastB) = mol.getEdges();
-  while (firstB != lastB) {
-    const Bond* bond = mol[*firstB];
+  for(auto *bond : mol.bonds()) {
     i = bond->getBeginAtomIdx();
     j = bond->getEndAtomIdx();
     double contrib;
@@ -211,7 +208,6 @@ double *getDistanceMat(const ROMol &mol, bool useBO, bool useAtomWts,
     }
     dMat[i * nAts + j] = contrib;
     dMat[j * nAts + i] = contrib;
-    ++firstB;
   }
 
   auto *pathMat = new int[nAts * nAts];
@@ -348,13 +344,13 @@ INT_LIST getShortestPath(const ROMol &mol, int aid1, int aid2) {
     boost::tie(nbrIdx, endNbrs) =
         mol.getAtomNeighbors(mol.getAtomWithIdx(curAid));
     while (!done && nbrIdx != endNbrs) {
-      switch (pred[*nbrIdx]) {
+      switch (pred[(*nbrIdx)->getIdx()]) {
         case -1:
-          pred[*nbrIdx] = curAid;
-          bfsQ.push_back(rdcast<int>(*nbrIdx));
+          pred[(*nbrIdx)->getIdx()] = curAid;
+          bfsQ.push_back(rdcast<int>((*nbrIdx)->getIdx()));
           break;
         case -3:  // end found
-          pred[*nbrIdx] = curAid;
+          pred[(*nbrIdx)->getIdx()] = curAid;
           done = true;
           break;
         default:  // already processed (or begin)

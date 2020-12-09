@@ -45,7 +45,7 @@ bool BondIterator_::operator!=(const BondIterator_ &other) const {
   return _mol != other._mol || _pos != other._pos;
 }
 
-Bond *BondIterator_::operator*() const { return (*_mol)[*_pos]; }
+Bond *BondIterator_::operator*() const { return *_pos; }
 // pre-increment
 BondIterator_ &BondIterator_::operator++() {
   PRECONDITION(_pos != _end, "bad initial position")
@@ -83,7 +83,7 @@ ConstBondIterator_::ConstBondIterator_(ROMol const *mol) {
   boost::tie(_beg, _end) = mol->getEdges();
   _pos = _beg;
 };
-ConstBondIterator_::ConstBondIterator_(ROMol const *mol, ROMol::EDGE_ITER pos) {
+ConstBondIterator_::ConstBondIterator_(ROMol const *mol, ROMol::CONST_EDGE_ITER pos) {
   _mol = mol;
   boost::tie(_beg, _end) = mol->getEdges();
 
@@ -111,7 +111,7 @@ bool ConstBondIterator_::operator!=(const ConstBondIterator_ &other) const {
 }
 
 Bond const *ConstBondIterator_::operator*() const {
-  return (*_mol)[*_pos];
+  return *_pos;
 }
 // pre-increment
 ConstBondIterator_ &ConstBondIterator_::operator++() {
